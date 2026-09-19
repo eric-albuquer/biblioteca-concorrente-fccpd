@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribuição / empacotamento
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# Ferramentas de teste e análise
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# ---------------------------------------------------------------
+# Sistema operacional
+# ---------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------
+# Editores e IDEs
+# ---------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------
+# Específico do projeto
+# ---------------------------------------------------------------
+# Saídas dos testes de carga, caso sejam redirecionadas para arquivo
+*.log
+saida_*.txt

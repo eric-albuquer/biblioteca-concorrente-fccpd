@@ -7,7 +7,15 @@ alguém devolver, em vez de receber um erro ou ficar consultando o servidor em
 laço.
 
 > Disciplina: FCCPD — Fundamentos de Concorrência e Computação Distribuída
-> Equipe: *(Amanda Luz, Eric Albuquerque, Gabriel Aniceto, Mircio Ferreira)*
+
+## 👩‍💻 Equipe
+
+**Integrantes:**
+
+* [Amanda Luz Chaves](https://github.com/amandaaluzc) - alc2@cesar.school  
+* [Eric Gonçalves Albuquerque](https://github.com/eric-albuquer) - ega2@cesar.school  
+* [Gabriel Aniceto de Sousa Alencar Barros](https://github.com/gabrielaniceto1) - gasab@cesar.school  
+* [Mircio Ferreira Dos Santos Neto](https://github.com/Mircio-Ferreira) -  mfsn@cesar.school
 
 ---
 
@@ -34,7 +42,7 @@ fluxo TCP).
 | `network/cliente.py` | Biblioteca cliente. Esconde o socket atrás de `pedir_livro` / `devolver_livro`. | Sim |
 | `test/servidor_test.py` | Sobe um servidor de teste com estoque pequeno, para forçar fila. | — |
 | `test/cliente_test.py` | Dispara N clientes concorrentes e valida o resultado. | — |
-| `ARQUITETURA.md` | Diagramas Mermaid: componentes e fluxo de dados. | — |
+
 
 A separação central é esta: **`biblioteca.py` não importa `socket`**. O domínio é
 testável e executável sem rede nenhuma, e a camada `network/` é só um adaptador.
@@ -46,17 +54,19 @@ servidor.
 O mapa completo — componentes, threads e fluxo de dados passo a passo — está em
 **[`ARQUITETURA.md`](ARQUITETURA.md)**, em dois diagramas Mermaid.
 
+caso a imagem não seja rederizada, é póssivel copiar o código e colocar na aplicação [WEB](https://mermaid.live/edit#pako:eNpVjcFugkAQhl9lM6c2AaOggntoUrH1YtIePBU8bGBkibJLhiVqgXfvgjFt5zST7_v_aSHVGQKH41lfUinIsP0mUczOaxxJKmpTivrAXPel26JhpVZ469j6aatZLXVVFSp_vvvrQWJRuxs0ZEYW6tTfUTTmPxR2bBPvRGV0dfhL9hfdsbe4-JS2_j-RhDb1Hh8FPwo3FcQiQaMCDuRUZMANNehAiVSK4YR2oAkYiSUmwO1KmDVXNxN0clN91pRAonqbr4T60rp8VJBucgn2z7m2V1NlwuCmEDmJXwVVhhTpRhngs3CsAN7CFbjvBRNv6c98PwwXobcKHLgBn3uTIFiu5uFq6i8s8HoHvsef00kYLPofW1Z3iA)
+
 ### Por que cada ferramenta
 
 | Escolha | Por quê | Alternativa descartada |
 |---|---|---|
 | **Python + `threading`** | O gargalo aqui é espera (I/O de rede e espera por exemplar), não CPU. O GIL não atrapalha: uma thread bloqueada em `recv()` ou `Event.wait()` **libera o GIL**, então as outras rodam. | `multiprocessing`: o estado (`Estoque`) é compartilhado e mutável. Com processos, ele precisaria de memória compartilhada ou IPC, muito mais complexo sem ganho. |
 | **Thread por cliente** | Cada cliente pode ficar arbitrariamente bloqueado na fila de espera. Com uma thread dedicada, esse bloqueio é expresso como uma chamada simples e sequencial (`evento.wait()`), sem máquina de estados. | `select`/`asyncio`: exigiria reescrever a espera como callback/corrotina e espalhar o estado do cliente pelo código. |
-| **`threading.Lock`** | A seção crítica é curtíssima (comparar e decrementar um inteiro, mexer num deque). Lock simples é o mais barato e o mais fácil de auditar. | `RLock`: não há recursão. `Semaphore`: ver a seção 2. |
+| **`threading.Lock`** | A seção crítica é curtíssima (comparar e decrementar um inteiro, mexer num deque). Lock simples é o mais barato e o mais fácil de auditar. | --- |
 | **`threading.Event` por cliente** | Precisamos acordar **um** cliente específico — o primeiro da fila. `Event` é a primitiva exata para isso. | `Condition.notify()`: acorda uma thread arbitrária, sem garantia de FIFO. |
 | **`collections.deque`** | Fila FIFO com `append`/`popleft` em O(1). | `list.pop(0)`: O(n). |
 | **TCP** | Empréstimo e devolução não podem ser perdidos nem reordenados. TCP dá entrega confiável e ordenada de graça. | UDP: exigiria reimplementar confirmação, retransmissão e ordenação. |
-| **`struct` + cabeçalho binário** | Enquadramento explícito e de tamanho fixo (5 bytes). Ver a seção 3. | JSON/pickle: ver a seção 3. |
+| **`struct` + cabeçalho binário** | Enquadramento explícito e de tamanho fixo (5 bytes). Ver a seção 3. | --- |
 | **Só biblioteca padrão** | Zero dependências: `python3 network/servidor.py` roda em qualquer máquina com Python 3.10+. | Frameworks de rede seriam peso morto para 4 operações. |
 
 ---
@@ -157,16 +167,7 @@ Se o contador fosse incrementado **e** a fila notificada, o exemplar seria
 contado duas vezes. Se fosse incrementado e ninguém notificado, quem está na
 fila dormiria para sempre.
 
-### Por que não um `Semaphore`
 
-`threading.Semaphore` resolveria a contagem em uma linha, e é uma pergunta justa
-na apresentação. Não foi usado porque o `Semaphore` do Python **não garante
-ordem de liberação** — um cliente pode ficar para trás indefinidamente enquanto
-recém-chegados passam na frente. A implementação com contador + `deque` de
-`Event` custa poucas linhas a mais e entrega FIFO demonstrável, que é
-justamente o que o teste de fila comprova.
-
----
 
 ## 3. Comunicação: protocolo da aplicação
 
@@ -219,15 +220,6 @@ cliente e servidor se entendam mesmo em arquiteturas diferentes. O `!` também
 desliga o alinhamento do `struct`, então o cabeçalho tem exatamente 5 bytes em
 qualquer plataforma — sem ele, o C daria 8 por padding.
 
-**Por que binário, e não JSON.** O cabeçalho é de tamanho fixo e conhecido, o
-que permite lê-lo com uma única chamada de tamanho determinado. Com JSON ainda
-seria necessário resolver o enquadramento antes de conseguir parsear — o
-problema não desapareceria, só mudaria de lugar.
-
-**Por que UTF-8, com o tamanho contado em bytes.** O catálogo tem acentos
-("Ficção Científica"). O campo `tamanho` conta **bytes codificados**, não
-caracteres — `len(payload.encode("utf-8"))`. Contar caracteres truncaria toda
-mensagem acentuada.
 
 **Por que `receber_exatamente` tem um laço.** Um `recv(n)` pode devolver menos
 de `n` bytes. O laço acumula até completar, e é o que torna o protocolo correto
@@ -316,40 +308,21 @@ cadastrar o mesmo título ao mesmo tempo, largando juntas de uma `Barrier`.
 cadastro concorrente OK (1 vencedor em 20 threads, 1 estoque criado)
 ```
 
-Verificações de protocolo e de servidor (via `socketpair`):
-
-```
-protocolo: enquadramento + UTF-8 OK  (header = 5 bytes)
-protocolo: payload de 300KB remontado OK (exercita receber_exatamente)
-servidor: B bloqueado na fila enquanto A segura o exemplar
-servidor: devolução liberou B da fila
-servidor: PEDIR/DEVOLVER inexistente e operação 99 respondem ERRO
-```
-
-> **Pendência de verificação:** o `servidor_test.py` + `cliente_test.py` sobre
-> TCP real ainda **não foi executado** — o ambiente onde o código foi preparado
-> bloqueia `bind()` de socket, inclusive em loopback. As evidências acima vêm do
-> domínio puro e de `socketpair`, que exercitam a mesma lógica de concorrência e
-> de protocolo, mas não o caminho `accept()`. **Rode os dois terminais antes da
-> entrega e cole a saída aqui.**
-
 ---
 
 ## 5. Diário de uso de IA
 
 Ferramenta usada: **Claude (Claude Code)**.
 
-> **A preencher pela equipe.** A tabela abaixo registra as interações desta
-> sessão. Acrescentem as de vocês — a rubrica pede o que foi pedido, o que foi
-> corrigido e a demonstração de que o código é compreendido.
+
 
 | # | O que foi pedido | O que a IA produziu | O que foi aceito / corrigido |
 |---|---|---|---|
 | 1 | Diagramas Mermaid de arquitetura e de fluxo de dados | Dois diagramas + um de estados | Aceitos os dois primeiros. **Rejeitado** o diagrama de estados (redundante) e removido. Pedimos fundo preto. |
 | 2 | Corrigir erro de parse no Mermaid | Diagnóstico: `;` dentro de um `Note` é separador de statement no Mermaid | Aceito. Também trocados os `<br/>` em rótulos de state diagram, que não renderizam. |
 | 3 | Reescrever os testes após o refactor | Suíte `unittest` extensa + alterações em `servidor.py` para testabilidade | **Rejeitado.** Escopo grande demais e mexia no `servidor.py` além do necessário. Revertido. |
-| 4 | Atualizar diagramas após o refactor | Diagramas atualizados + seção "Pontos de atenção" | Aceito. A IA apontou um bug que não tínhamos visto. |
-| 5 | Melhorar nomes, README, dividir o teste de rede | Renomeações, `servidor_test.py`, `cliente_test.py`, este README | *(revisar e anotar o que a equipe ajustou)* |
+| 4 | Atualizar diagramas após o refactor | Diagramas atualizados + seção "Pontos de atenção" | Aceito. A IA apontou um bug que não tínhamos visto. (No caso de aumento de estoque) |
+| 5 | Melhorar nomes, README, dividir o teste de rede | Renomeações, `servidor_test.py`, `cliente_test.py`, este README | O grupo preparou uma documentação básica para o readme e pediu para o claude expandir e apóis isso foir revisada e alterada. 
 
 ### O que a equipe precisa saber explicar na arguição
 
@@ -369,32 +342,7 @@ Se a banca perguntar "por que aqui e não ali", estes são os pontos:
 
 ---
 
-## 6. Roteiro da apresentação (10 minutos)
-
-Sugestão de divisão para que **todos falem**, como a rubrica exige.
-
-| Tempo | Tema | Quem |
-|---|---|---|
-| 0–1,5 min | Problema e visão geral. Por que empréstimo de livros é um bom caso de concorrência. | *(nome)* |
-| 1,5–3,5 min | Arquitetura: diagrama de componentes, separação domínio/rede, por que thread por cliente. | *(nome)* |
-| 3,5–6 min | **Concorrência** (a parte que mais pesa): a corrida no contador, o lock, o `wait()` fora do lock, FIFO contra inanição. | *(nome)* |
-| 6–7,5 min | Protocolo: enquadramento, cabeçalho `!BI`, por que não JSON nem `pickle`. | *(nome)* |
-| 7,5–9,5 min | **Demo ao vivo**: servidor num terminal, 200 clientes no outro, painel mostrando a fila subir e drenar. | *(nome)* |
-| 9,5–10 min | Uso de IA, bug encontrado, limitações conhecidas. | *(nome)* |
-
-**Antes de apresentar:**
-
-- Ensaiar a demo com o servidor já rodando — subir na hora custa tempo.
-- Ter os diagramas do `ARQUITETURA.md` renderizados (o VS Code com a extensão
-  Mermaid, ou colados como imagem), não em código-fonte no slide.
-- Deixar aberto o trecho do `retirar_exemplar` — é o slide mais provável de
-  gerar pergunta.
-- Ler a seção "Pontos de atenção" do `ARQUITETURA.md`: são as limitações
-  conhecidas, e admiti-las antes de a banca apontar conta a favor.
-
----
-
-## 7. Limitações conhecidas
+## 6. Limitações conhecidas
 
 - A devolução **não confere posse** — é feita só pelo título, então um cliente
   pode devolver algo que nunca pegou e inflar o estoque. É a limitação

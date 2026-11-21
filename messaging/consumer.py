@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
 import threading
 import uuid
 from typing import Any, Callable
@@ -47,6 +48,7 @@ class Worker:
         max_retries: int | None = None,
         backoff_max: float = 30.0,
         processador: Callable[[str, str], Any] | None = None,
+        exit_function: Callable[[int], Any] | None = None,
     ):
         self.dsn = dsn
         self.rabbitmq_url = rabbitmq_url
@@ -67,7 +69,11 @@ class Worker:
             else int(os.getenv("WORKER_MAX_RETRIES", "3"))
         )
         self.backoff_max = backoff_max
-        self.servico = ServicoEmprestimos(dsn)
+        self.exit_function = exit_function or os._exit
+        self.servico = ServicoEmprestimos(
+            dsn,
+            failpoint=self._acionar_failpoint,
+        )
         self.processador = processador or self._processar_no_banco
         self.pronto = threading.Event()
         self._encerrando = threading.Event()
@@ -163,6 +169,8 @@ class Worker:
             self._retentar_ou_descartar(channel, method, properties, body)
             return
 
+        self._acionar_failpoint("AFTER_COMMIT_BEFORE_ACK", request_id)
+
         # processador só retorna depois do commit da transação de domínio.
         channel.basic_ack(delivery_tag=method.delivery_tag)
         self.mensagens_processadas += 1
@@ -235,6 +243,42 @@ class Worker:
         if properties.message_id and properties.message_id != request_id:
             raise MensagemInvalida("message_id diverge de request_id")
         return request_id, tipo
+
+    def _acionar_failpoint(self, nome: str, request_id: str) -> None:
+        if os.getenv("ENABLE_FAILPOINTS") != "1":
+            return
+        if os.getenv("FAILPOINT") != nome:
+            return
+        alvo = os.getenv("FAILPOINT_REQUEST_ID")
+        if alvo and alvo != request_id:
+            return
+
+        diretorio = Path(
+            os.getenv("FAILPOINT_MARKER_DIR", "/tmp/biblioteca-failpoints")
+        )
+        marcador = diretorio / f"{nome}-{request_id}.executado"
+        try:
+            diretorio.mkdir(parents=True, exist_ok=True)
+            marcador.touch(exist_ok=False)
+        except FileExistsError:
+            return
+        except OSError:
+            LOGGER.exception(
+                "worker_id=%s não conseguiu criar marcador do failpoint",
+                self.worker_id,
+            )
+            return
+
+        codigo = 91 if nome == "BEFORE_COMMIT" else 92
+        LOGGER.critical(
+            "worker_id=%s request_id=%s FAILPOINT=%s exit_code=%s",
+            self.worker_id,
+            request_id,
+            nome,
+            codigo,
+        )
+        logging.shutdown()
+        self.exit_function(codigo)
 
     def _fechar_conexao(self) -> None:
         if self._connection is not None and self._connection.is_open:

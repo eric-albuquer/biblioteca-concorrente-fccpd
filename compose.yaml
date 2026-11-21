@@ -118,6 +118,10 @@ services:
       <<: *app-environment
       WORKER_PREFETCH: ${WORKER_PREFETCH:-1}
       WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES:-3}
+      ENABLE_FAILPOINTS: ${ENABLE_FAILPOINTS:-0}
+      FAILPOINT: ${FAILPOINT:-}
+      FAILPOINT_REQUEST_ID: ${FAILPOINT_REQUEST_ID:-}
+      FAILPOINT_MARKER_DIR: /tmp/biblioteca-failpoints
     depends_on:
       migrate:
         condition: service_completed_successfully

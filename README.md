@@ -18,7 +18,9 @@ laço.
 > o publisher e os workers estão em
 > [`docs/ETAPA_3_MENSAGERIA.md`](docs/ETAPA_3_MENSAGERIA.md). A execução
 > reproduzível em containers está em
-> [`docs/ETAPA_4_DOCKER.md`](docs/ETAPA_4_DOCKER.md).
+> [`docs/ETAPA_4_DOCKER.md`](docs/ETAPA_4_DOCKER.md). Os testes de falha,
+> redelivery e recuperação estão em
+> [`docs/ETAPA_5_FALHAS.md`](docs/ETAPA_5_FALHAS.md).
 
 ## Parte 2 — inicialização rápida com Docker
 

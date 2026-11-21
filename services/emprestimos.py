@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -21,8 +22,14 @@ from services.comum import (
 class ServicoEmprestimos:
     """Coordena transações sem manter estoque ou fila na memória do processo."""
 
-    def __init__(self, dsn: str | None = None):
+    def __init__(
+        self,
+        dsn: str | None = None,
+        *,
+        failpoint: Callable[[str, str], None] | None = None,
+    ):
         self.dsn = dsn
+        self.failpoint = failpoint
 
     def registrar_pedido(
         self, request_id: UUID | str, usuario_id: int, livro_id: int
@@ -88,7 +95,12 @@ class ServicoEmprestimos:
                 ),
             ).fetchone()
 
-    def processar_pedidos(self, livro_id: int) -> list[dict[str, Any]]:
+    def processar_pedidos(
+        self,
+        livro_id: int,
+        *,
+        gatilho_request_id: UUID | str | None = None,
+    ) -> list[dict[str, Any]]:
         """Atende os pedidos elegíveis mais antigos, não o evento disparador."""
         atendidos: list[dict[str, Any]] = []
         with transacao(self.dsn) as conexao:
@@ -173,6 +185,10 @@ class ServicoEmprestimos:
                 """,
                 (livro_id,),
             )
+            if gatilho_request_id is not None:
+                self._executar_failpoint(
+                    "BEFORE_COMMIT", str(gatilho_request_id)
+                )
 
         return atendidos
 
@@ -260,7 +276,10 @@ class ServicoEmprestimos:
                 )
 
         if tipo == "PEDIR":
-            self.processar_pedidos(livro_id)
+            self.processar_pedidos(
+                livro_id,
+                gatilho_request_id=request_uuid,
+            )
         elif tipo == "DEVOLVER":
             return self.processar_devolucao(request_uuid)
         else:
@@ -332,7 +351,7 @@ class ServicoEmprestimos:
             erro = "Empréstimo já foi devolvido"
 
         if erro:
-            return conexao.execute(
+            resultado = conexao.execute(
                 """
                 UPDATE solicitacoes
                 SET status = 'REJEITADO', erro = %s,
@@ -344,6 +363,8 @@ class ServicoEmprestimos:
                 """,
                 (erro, request_id),
             ).fetchone()
+            self._executar_failpoint("BEFORE_COMMIT", str(request_id))
+            return resultado
 
         conexao.execute(
             """
@@ -398,7 +419,7 @@ class ServicoEmprestimos:
                 (livro_id,),
             )
 
-        return conexao.execute(
+        resultado = conexao.execute(
             """
             UPDATE solicitacoes
             SET status = 'CONCLUIDO', erro = NULL,
@@ -410,4 +431,10 @@ class ServicoEmprestimos:
             """,
             (request_id,),
         ).fetchone()
+        self._executar_failpoint("BEFORE_COMMIT", str(request_id))
+        return resultado
+
+    def _executar_failpoint(self, nome: str, request_id: str) -> None:
+        if self.failpoint is not None:
+            self.failpoint(nome, request_id)
 

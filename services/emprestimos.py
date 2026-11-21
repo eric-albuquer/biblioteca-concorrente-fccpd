@@ -202,9 +202,12 @@ class ServicoEmprestimos:
             bloquear_request_id(conexao, request_uuid)
             existente = selecionar_solicitacao(conexao, request_uuid)
             if existente:
-                return validar_repeticao(
+                solicitacao = validar_repeticao(
                     existente, tipo="DEVOLVER", payload_hash=payload_hash
                 )
+                if solicitacao["status"] != "RECEBIDO":
+                    return solicitacao
+                return self._aplicar_devolucao(conexao, solicitacao)
 
             referencia = conexao.execute(
                 "SELECT livro_id FROM emprestimos WHERE id = %s",
@@ -215,44 +218,13 @@ class ServicoEmprestimos:
                     f"Empréstimo {emprestimo_id} não existe"
                 )
 
-            livro_id = referencia["livro_id"]
-            # Ordem global de locks do domínio: livro, depois empréstimo.
-            livro = conexao.execute(
-                """
-                SELECT id, capacidade, disponiveis
-                FROM livros
-                WHERE id = %s
-                FOR UPDATE
-                """,
-                (livro_id,),
-            ).fetchone()
-            emprestimo = conexao.execute(
-                """
-                SELECT id, livro_id, usuario_id, borrow_request_id,
-                       emprestado_em, devolvido_em
-                FROM emprestimos
-                WHERE id = %s
-                FOR UPDATE
-                """,
-                (emprestimo_id,),
-            ).fetchone()
-
-            erro: str | None = None
-            if emprestimo["usuario_id"] != usuario_id:
-                erro = "Empréstimo ativo não pertence ao usuário informado"
-            elif emprestimo["devolvido_em"] is not None:
-                erro = "Empréstimo já foi devolvido"
-
             solicitacao = conexao.execute(
                 """
                 INSERT INTO solicitacoes (
                     request_id, tipo, usuario_id, livro_id, emprestimo_id,
-                    status, erro, payload_hash, concluido_em
+                    status, payload_hash
                 )
-                VALUES (
-                    %s, 'DEVOLVER', %s, %s, %s, %s, %s, %s,
-                    CURRENT_TIMESTAMP
-                )
+                VALUES (%s, 'DEVOLVER', %s, %s, %s, 'RECEBIDO', %s)
                 RETURNING request_id, tipo, usuario_id, livro_id, emprestimo_id,
                           ordem_fila, status, erro, payload_hash, criado_em,
                           atualizado_em, concluido_em
@@ -260,80 +232,182 @@ class ServicoEmprestimos:
                 (
                     request_uuid,
                     usuario_id,
-                    livro_id,
+                    referencia["livro_id"],
                     emprestimo_id,
-                    "REJEITADO" if erro else "RECEBIDO",
-                    erro,
                     payload_hash,
                 ),
             ).fetchone()
+            return self._aplicar_devolucao(conexao, solicitacao)
 
-            if erro:
+    def processar_comando(
+        self,
+        request_id: UUID | str,
+        tipo_esperado: str | None = None,
+    ) -> dict[str, Any]:
+        """Aplica a solicitação canônica do banco e tolera redelivery."""
+        request_uuid = normalizar_uuid(request_id)
+        with transacao(self.dsn) as conexao:
+            solicitacao = selecionar_solicitacao(conexao, request_uuid)
+            if not solicitacao:
+                raise EntidadeNaoEncontrada(
+                    f"Solicitação {request_uuid} não existe"
+                )
+            tipo = solicitacao["tipo"]
+            livro_id = solicitacao["livro_id"]
+            if tipo_esperado is not None and tipo != tipo_esperado:
+                raise RegraDeNegocioError(
+                    f"Mensagem {tipo_esperado} diverge da solicitação {tipo}"
+                )
+
+        if tipo == "PEDIR":
+            self.processar_pedidos(livro_id)
+        elif tipo == "DEVOLVER":
+            return self.processar_devolucao(request_uuid)
+        else:
+            raise RegraDeNegocioError(f"Tipo de solicitação inválido: {tipo}")
+
+        with transacao(self.dsn) as conexao:
+            return selecionar_solicitacao(conexao, request_uuid)
+
+    def processar_devolucao(
+        self, request_id: UUID | str
+    ) -> dict[str, Any]:
+        request_uuid = normalizar_uuid(request_id)
+        with transacao(self.dsn) as conexao:
+            solicitacao = selecionar_solicitacao(conexao, request_uuid)
+            if not solicitacao:
+                raise EntidadeNaoEncontrada(
+                    f"Solicitação {request_uuid} não existe"
+                )
+            if solicitacao["tipo"] != "DEVOLVER":
+                raise RegraDeNegocioError(
+                    f"Solicitação {request_uuid} não é uma devolução"
+                )
+            if solicitacao["status"] != "RECEBIDO":
                 return solicitacao
+            return self._aplicar_devolucao(conexao, solicitacao)
 
-            conexao.execute(
-                """
-                UPDATE emprestimos
-                SET devolvido_em = CURRENT_TIMESTAMP
-                WHERE id = %s
-                """,
-                (emprestimo_id,),
-            )
+    def _aplicar_devolucao(
+        self, conexao, solicitacao: dict[str, Any]
+    ) -> dict[str, Any]:
+        livro_id = solicitacao["livro_id"]
+        emprestimo_id = solicitacao["emprestimo_id"]
+        request_id = solicitacao["request_id"]
 
-            proximo = conexao.execute(
-                """
-                SELECT request_id, usuario_id, ordem_fila
-                FROM solicitacoes
-                WHERE livro_id = %s
-                  AND tipo = 'PEDIR'
-                  AND status IN ('RECEBIDO', 'AGUARDANDO')
-                ORDER BY ordem_fila
-                LIMIT 1
-                FOR UPDATE
-                """,
-                (livro_id,),
-            ).fetchone()
+        # Ordem global de locks: livro, solicitação, empréstimo.
+        conexao.execute(
+            "SELECT id FROM livros WHERE id = %s FOR UPDATE",
+            (livro_id,),
+        ).fetchone()
+        atual = conexao.execute(
+            """
+            SELECT request_id, tipo, usuario_id, livro_id, emprestimo_id,
+                   ordem_fila, status, erro, payload_hash, criado_em,
+                   atualizado_em, concluido_em
+            FROM solicitacoes
+            WHERE request_id = %s
+            FOR UPDATE
+            """,
+            (request_id,),
+        ).fetchone()
+        if atual["status"] != "RECEBIDO":
+            return atual
 
-            if proximo:
-                novo_emprestimo = conexao.execute(
-                    """
-                    INSERT INTO emprestimos (
-                        livro_id, usuario_id, borrow_request_id
-                    )
-                    VALUES (%s, %s, %s)
-                    RETURNING id
-                    """,
-                    (livro_id, proximo["usuario_id"], proximo["request_id"]),
-                ).fetchone()
-                conexao.execute(
-                    """
-                    UPDATE solicitacoes
-                    SET status = 'CONCLUIDO', emprestimo_id = %s,
-                        erro = NULL, concluido_em = CURRENT_TIMESTAMP
-                    WHERE request_id = %s
-                    """,
-                    (novo_emprestimo["id"], proximo["request_id"]),
-                )
-            else:
-                conexao.execute(
-                    """
-                    UPDATE livros
-                    SET disponiveis = disponiveis + 1
-                    WHERE id = %s
-                    """,
-                    (livro_id,),
-                )
+        emprestimo = conexao.execute(
+            """
+            SELECT id, usuario_id, devolvido_em
+            FROM emprestimos
+            WHERE id = %s
+            FOR UPDATE
+            """,
+            (emprestimo_id,),
+        ).fetchone()
 
+        erro: str | None = None
+        if not emprestimo:
+            erro = "Empréstimo não existe"
+        elif emprestimo["usuario_id"] != atual["usuario_id"]:
+            erro = "Empréstimo ativo não pertence ao usuário informado"
+        elif emprestimo["devolvido_em"] is not None:
+            erro = "Empréstimo já foi devolvido"
+
+        if erro:
             return conexao.execute(
                 """
                 UPDATE solicitacoes
-                SET status = 'CONCLUIDO', erro = NULL,
+                SET status = 'REJEITADO', erro = %s,
                     concluido_em = CURRENT_TIMESTAMP
                 WHERE request_id = %s
                 RETURNING request_id, tipo, usuario_id, livro_id, emprestimo_id,
                           ordem_fila, status, erro, payload_hash, criado_em,
                           atualizado_em, concluido_em
                 """,
-                (request_uuid,),
+                (erro, request_id),
             ).fetchone()
+
+        conexao.execute(
+            """
+            UPDATE emprestimos
+            SET devolvido_em = CURRENT_TIMESTAMP
+            WHERE id = %s
+            """,
+            (emprestimo_id,),
+        )
+
+        proximo = conexao.execute(
+            """
+            SELECT request_id, usuario_id, ordem_fila
+            FROM solicitacoes
+            WHERE livro_id = %s
+              AND tipo = 'PEDIR'
+              AND status IN ('RECEBIDO', 'AGUARDANDO')
+            ORDER BY ordem_fila
+            LIMIT 1
+            FOR UPDATE
+            """,
+            (livro_id,),
+        ).fetchone()
+
+        if proximo:
+            novo_emprestimo = conexao.execute(
+                """
+                INSERT INTO emprestimos (
+                    livro_id, usuario_id, borrow_request_id
+                )
+                VALUES (%s, %s, %s)
+                RETURNING id
+                """,
+                (livro_id, proximo["usuario_id"], proximo["request_id"]),
+            ).fetchone()
+            conexao.execute(
+                """
+                UPDATE solicitacoes
+                SET status = 'CONCLUIDO', emprestimo_id = %s,
+                    erro = NULL, concluido_em = CURRENT_TIMESTAMP
+                WHERE request_id = %s
+                """,
+                (novo_emprestimo["id"], proximo["request_id"]),
+            )
+        else:
+            conexao.execute(
+                """
+                UPDATE livros
+                SET disponiveis = disponiveis + 1
+                WHERE id = %s
+                """,
+                (livro_id,),
+            )
+
+        return conexao.execute(
+            """
+            UPDATE solicitacoes
+            SET status = 'CONCLUIDO', erro = NULL,
+                concluido_em = CURRENT_TIMESTAMP
+            WHERE request_id = %s
+            RETURNING request_id, tipo, usuario_id, livro_id, emprestimo_id,
+                      ordem_fila, status, erro, payload_hash, criado_em,
+                      atualizado_em, concluido_em
+            """,
+            (request_id,),
+        ).fetchone()
 

@@ -3,8 +3,10 @@
 > **Documento legado da Parte 1.** Os diagramas abaixo registram o ponto de
 > partida preservado. A evolução já implementada até o Gateway V2 está descrita
 > em [`docs/ETAPA_1_POSTGRESQL.md`](docs/ETAPA_1_POSTGRESQL.md) e
-> [`docs/ETAPA_2_GATEWAY.md`](docs/ETAPA_2_GATEWAY.md). O diagrama distribuído
-> final será consolidado nas etapas seguintes.
+> [`docs/ETAPA_2_GATEWAY.md`](docs/ETAPA_2_GATEWAY.md). A mensageria e os
+> workers estão descritos em
+> [`docs/ETAPA_3_MENSAGERIA.md`](docs/ETAPA_3_MENSAGERIA.md). O diagrama
+> distribuído final será consolidado nas etapas seguintes.
 
 Biblioteca concorrente com servidor TCP multithread. O domínio (`biblioteca.py`)
 não conhece rede; a camada de rede (`network/`) apenas traduz bytes em chamadas

@@ -14,7 +14,9 @@ laço.
 > PostgreSQL adicionada na Etapa 1 está documentada em
 > [`docs/ETAPA_1_POSTGRESQL.md`](docs/ETAPA_1_POSTGRESQL.md). O contrato JSON,
 > a idempotência e a outbox do Gateway V2 estão em
-> [`docs/ETAPA_2_GATEWAY.md`](docs/ETAPA_2_GATEWAY.md).
+> [`docs/ETAPA_2_GATEWAY.md`](docs/ETAPA_2_GATEWAY.md). A mensageria RabbitMQ,
+> o publisher e os workers estão em
+> [`docs/ETAPA_3_MENSAGERIA.md`](docs/ETAPA_3_MENSAGERIA.md).
 
 ## 👩‍💻 Equipe
 

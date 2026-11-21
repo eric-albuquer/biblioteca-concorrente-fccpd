@@ -2,64 +2,20 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any
 from uuid import UUID
 
 from database.connection import transacao
-
-
-class RegraDeNegocioError(RuntimeError):
-    """Erro esperado que não deve ser retentado como falha de infraestrutura."""
-
-
-class EntidadeNaoEncontrada(RegraDeNegocioError):
-    pass
-
-
-class ConflitoIdempotencia(RegraDeNegocioError):
-    pass
-
-
-def _normalizar_uuid(request_id: UUID | str) -> UUID:
-    try:
-        return request_id if isinstance(request_id, UUID) else UUID(str(request_id))
-    except (TypeError, ValueError, AttributeError) as erro:
-        raise ValueError("request_id deve ser um UUID válido") from erro
-
-
-def _hash_payload(payload: dict[str, Any]) -> str:
-    canonico = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(canonico).hexdigest()
-
-
-def _selecionar_solicitacao(conexao, request_id: UUID) -> dict[str, Any] | None:
-    return conexao.execute(
-        """
-        SELECT request_id, tipo, usuario_id, livro_id, emprestimo_id,
-               ordem_fila, status, erro, payload_hash, criado_em,
-               atualizado_em, concluido_em
-        FROM solicitacoes
-        WHERE request_id = %s
-        """,
-        (request_id,),
-    ).fetchone()
-
-
-def _validar_repeticao(
-    existente: dict[str, Any], *, tipo: str, payload_hash: str
-) -> dict[str, Any]:
-    if existente["tipo"] != tipo or existente["payload_hash"].strip() != payload_hash:
-        raise ConflitoIdempotencia(
-            "request_id já utilizado com tipo ou payload diferente"
-        )
-    return existente
+from services.comum import (
+    ConflitoIdempotencia,
+    EntidadeNaoEncontrada,
+    RegraDeNegocioError,
+    bloquear_request_id,
+    hash_payload,
+    normalizar_uuid,
+    selecionar_solicitacao,
+    validar_repeticao,
+)
 
 
 class ServicoEmprestimos:
@@ -71,21 +27,18 @@ class ServicoEmprestimos:
     def registrar_pedido(
         self, request_id: UUID | str, usuario_id: int, livro_id: int
     ) -> dict[str, Any]:
-        request_uuid = _normalizar_uuid(request_id)
-        payload_hash = _hash_payload(
+        request_uuid = normalizar_uuid(request_id)
+        payload_hash = hash_payload(
             {"tipo": "PEDIR", "usuario_id": usuario_id, "livro_id": livro_id}
         )
 
         with transacao(self.dsn) as conexao:
             # Serializa somente retransmissões do mesmo UUID, inclusive se elas
             # apontarem por engano para livros diferentes.
-            conexao.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                (str(request_uuid),),
-            )
-            existente = _selecionar_solicitacao(conexao, request_uuid)
+            bloquear_request_id(conexao, request_uuid)
+            existente = selecionar_solicitacao(conexao, request_uuid)
             if existente:
-                return _validar_repeticao(
+                return validar_repeticao(
                     existente, tipo="PEDIR", payload_hash=payload_hash
                 )
 
@@ -229,15 +182,15 @@ class ServicoEmprestimos:
         solicitacao = self.registrar_pedido(request_id, usuario_id, livro_id)
         self.processar_pedidos(livro_id)
         with transacao(self.dsn) as conexao:
-            return _selecionar_solicitacao(
-                conexao, _normalizar_uuid(solicitacao["request_id"])
+            return selecionar_solicitacao(
+                conexao, normalizar_uuid(solicitacao["request_id"])
             )
 
     def devolver_emprestimo(
         self, request_id: UUID | str, usuario_id: int, emprestimo_id: int
     ) -> dict[str, Any]:
-        request_uuid = _normalizar_uuid(request_id)
-        payload_hash = _hash_payload(
+        request_uuid = normalizar_uuid(request_id)
+        payload_hash = hash_payload(
             {
                 "tipo": "DEVOLVER",
                 "usuario_id": usuario_id,
@@ -246,13 +199,10 @@ class ServicoEmprestimos:
         )
 
         with transacao(self.dsn) as conexao:
-            conexao.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                (str(request_uuid),),
-            )
-            existente = _selecionar_solicitacao(conexao, request_uuid)
+            bloquear_request_id(conexao, request_uuid)
+            existente = selecionar_solicitacao(conexao, request_uuid)
             if existente:
-                return _validar_repeticao(
+                return validar_repeticao(
                     existente, tipo="DEVOLVER", payload_hash=payload_hash
                 )
 

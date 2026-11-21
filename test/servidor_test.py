@@ -1,55 +1,40 @@
-"""Teste de rede — lado SERVIDOR.
+"""Gateway V2 manual para o gerador de carga ``cliente_test.py``.
 
-Sobe um servidor com um catálogo propositalmente pequeno, para que o número de
-clientes do `cliente_test.py` seja muito maior que o de exemplares e a fila de
-espera seja realmente exercitada.
-
-Uso (terminal 1):
-    python3 test/servidor_test.py
-
-Depois, em outro terminal, rode o `cliente_test.py`.
-O painel na tela mostra "Disponíveis" e "Fila" atualizando a cada segundo.
+Requer ``DATABASE_URL`` apontando para um PostgreSQL de desenvolvimento.
+O script aplica schema e seed de forma idempotente; ele não inicia worker.
 """
 
-import sys
+import logging
 import os
+from pathlib import Path
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from database.connection import aplicar_schema
 from network.servidor import Servidor
-
-# Capacidades pequenas de propósito: com 100 clientes disputando 9 exemplares,
-# a maioria passa pela fila de espera em vez de ser atendida de imediato.
-CATALOGO = [
-    # titulo,     autor,      edicao, genero,              ano,  preco, capacidade
-    ("Duna",      "Mircio",   1,      "Ficção Científica", 1965, 59.90, 3),
-    ("1984",      "Amanda",   2,      "Distopia",          1949, 45.00, 2),
-    ("O Hobbit",  "Tolkien",  4,      "Fantasia",          1937, 39.90, 4),
-]
 
 
 if __name__ == "__main__":
+    if not os.getenv("DATABASE_URL"):
+        raise SystemExit("Configure DATABASE_URL antes de iniciar o Gateway V2.")
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    aplicar_schema(incluir_seed=True)
     servidor = Servidor()
 
-    for titulo, autor, edicao, genero, ano, preco, capacidade in CATALOGO:
-        servidor.biblioteca.cadastrar_livro(
-            titulo, autor, edicao, genero, ano, preco, capacidade
-        )
-
-    total = sum(linha[-1] for linha in CATALOGO)
-
     print("=" * 60)
-    print("SERVIDOR DE TESTE")
+    print("GATEWAY V2 DE TESTE — worker desligado")
     print("=" * 60)
-    print(f"Títulos:    {len(CATALOGO)}")
-    print(f"Exemplares: {total}")
-    print()
-    print("Rode 'python3 test/cliente_test.py' em outro terminal.")
+    print("Rode 'python test/cliente_test.py' em outro terminal.")
     print("Ctrl+C para encerrar.")
-    print()
 
     try:
         servidor.iniciar()
-
     except KeyboardInterrupt:
-        print("\nServidor encerrado.")
+        servidor.encerrar()
+        print("\nGateway encerrado.")

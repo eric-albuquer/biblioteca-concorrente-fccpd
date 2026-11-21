@@ -12,7 +12,9 @@ laço.
 > A auditoria inicial está em
 > [`docs/ETAPA_0_BASELINE.md`](docs/ETAPA_0_BASELINE.md), e a persistência
 > PostgreSQL adicionada na Etapa 1 está documentada em
-> [`docs/ETAPA_1_POSTGRESQL.md`](docs/ETAPA_1_POSTGRESQL.md).
+> [`docs/ETAPA_1_POSTGRESQL.md`](docs/ETAPA_1_POSTGRESQL.md). O contrato JSON,
+> a idempotência e a outbox do Gateway V2 estão em
+> [`docs/ETAPA_2_GATEWAY.md`](docs/ETAPA_2_GATEWAY.md).
 
 ## 👩‍💻 Equipe
 

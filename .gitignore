@@ -51,3 +51,6 @@ desktop.ini
 # Saídas dos testes de carga, caso sejam redirecionadas para arquivo
 *.log
 saida_*.txt
+
+# Credenciais e configuração local
+.env

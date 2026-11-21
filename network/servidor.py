@@ -22,6 +22,7 @@ from network.protocolo import (
 )
 from services.comum import ConflitoIdempotencia, EntidadeNaoEncontrada
 from services.solicitacoes import ServicoSolicitacoes
+from scripts.sinais import instalar_desligamento
 
 
 HOST = "0.0.0.0"
@@ -190,4 +191,6 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    Servidor().iniciar()
+    servidor = Servidor()
+    instalar_desligamento(servidor.encerrar)
+    servidor.iniciar()

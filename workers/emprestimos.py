@@ -3,6 +3,7 @@
 import logging
 
 from messaging.consumer import Worker
+from scripts.sinais import instalar_desligamento
 
 
 if __name__ == "__main__":
@@ -11,8 +12,6 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     worker = Worker()
-    try:
-        worker.iniciar()
-    except KeyboardInterrupt:
-        worker.encerrar()
+    instalar_desligamento(worker.encerrar)
+    worker.iniciar()
 

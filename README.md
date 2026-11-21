@@ -16,7 +16,57 @@ laço.
 > a idempotência e a outbox do Gateway V2 estão em
 > [`docs/ETAPA_2_GATEWAY.md`](docs/ETAPA_2_GATEWAY.md). A mensageria RabbitMQ,
 > o publisher e os workers estão em
-> [`docs/ETAPA_3_MENSAGERIA.md`](docs/ETAPA_3_MENSAGERIA.md).
+> [`docs/ETAPA_3_MENSAGERIA.md`](docs/ETAPA_3_MENSAGERIA.md). A execução
+> reproduzível em containers está em
+> [`docs/ETAPA_4_DOCKER.md`](docs/ETAPA_4_DOCKER.md).
+
+## Parte 2 — inicialização rápida com Docker
+
+Pré-requisitos: Docker Desktop/Engine com Docker Compose e Python 3.11+ para
+executar o cliente no host.
+
+Prepare as variáveis locais e troque as senhas de exemplo:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Suba PostgreSQL, RabbitMQ, migração, Gateway, publisher e dois workers:
+
+```powershell
+docker compose up -d --build --scale worker=2
+docker compose ps
+```
+
+O serviço `migrate` terminar em `Exited (0)` é esperado. Aguarde `postgres`,
+`rabbitmq`, `gateway`, `publisher` e os dois workers ficarem saudáveis.
+
+Execute no host um empréstimo, consulte a conclusão e devolva o exemplar:
+
+```powershell
+py -3.13 -m scripts.demo_fluxo --host 127.0.0.1 --port 9999
+```
+
+Consulte os processos e logs:
+
+```powershell
+docker compose ps
+docker compose logs --tail=100 gateway publisher worker rabbitmq postgres
+```
+
+O Gateway fica em `127.0.0.1:9999` e a interface de administração do RabbitMQ
+em `http://127.0.0.1:15672`. As portas podem ser alteradas no `.env`. Dentro da
+rede Compose, a aplicação usa os hostnames `postgres` e `rabbitmq`, nunca
+`localhost`.
+
+Para encerrar preservando os dados:
+
+```powershell
+docker compose down
+```
+
+`docker compose down -v` também remove os volumes e **apaga definitivamente** o
+banco e as filas. Use `-v` apenas quando quiser reinicialização limpa.
 
 ## 👩‍💻 Equipe
 

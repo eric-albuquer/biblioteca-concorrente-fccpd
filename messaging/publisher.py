@@ -17,6 +17,7 @@ from messaging.topology import (
     COMMAND_ROUTING_KEY,
     declarar_topologia,
 )
+from scripts.sinais import instalar_desligamento
 
 
 LOGGER = logging.getLogger(__name__)
@@ -178,8 +179,7 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    try:
-        OutboxPublisher().iniciar()
-    except KeyboardInterrupt:
-        pass
+    publisher = OutboxPublisher()
+    instalar_desligamento(publisher.encerrar)
+    publisher.iniciar()
 

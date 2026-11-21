@@ -1,0 +1,143 @@
+name: biblioteca-concorrente
+
+x-app-environment: &app-environment
+  DATABASE_URL: >-
+    postgresql://${POSTGRES_USER:-biblioteca}:${POSTGRES_PASSWORD:-biblioteca_dev}@postgres:5432/${POSTGRES_DB:-biblioteca}
+  RABBITMQ_URL: >-
+    amqp://${RABBITMQ_USER:-biblioteca}:${RABBITMQ_PASSWORD:-biblioteca_dev}@rabbitmq:5672/%2F
+  PYTHONUNBUFFERED: "1"
+
+x-app-base: &app-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      PYTHON_VERSION: "3.13.4"
+  image: biblioteca-concorrente:parte2
+  environment: *app-environment
+  restart: unless-stopped
+  init: true
+
+services:
+  postgres:
+    image: postgres:16.16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-biblioteca}
+      POSTGRES_USER: ${POSTGRES_USER:-biblioteca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-biblioteca_dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.4.1-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-biblioteca}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-biblioteca_dev}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  migrate:
+    <<: *app-base
+    command: ["python", "-m", "scripts.inicializar_banco"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  gateway:
+    <<: *app-base
+    command: ["python", "-m", "network.servidor"]
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-9999}:9999"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-m",
+          "scripts.healthcheck",
+          "gateway",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
+  publisher:
+    <<: *app-base
+    command: ["python", "-m", "messaging.publisher"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-m",
+          "scripts.healthcheck",
+          "dependencies",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 4
+      start_period: 5s
+
+  worker:
+    <<: *app-base
+    command: ["python", "-m", "workers.emprestimos"]
+    environment:
+      <<: *app-environment
+      WORKER_PREFETCH: ${WORKER_PREFETCH:-1}
+      WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES:-3}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-m",
+          "scripts.healthcheck",
+          "dependencies",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 4
+      start_period: 5s
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+

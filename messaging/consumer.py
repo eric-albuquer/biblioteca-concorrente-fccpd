@@ -43,18 +43,29 @@ class Worker:
         rabbitmq_url: str | None = None,
         *,
         worker_id: str | None = None,
-        prefetch_count: int = 1,
-        max_retries: int = 3,
+        prefetch_count: int | None = None,
+        max_retries: int | None = None,
         backoff_max: float = 30.0,
         processador: Callable[[str, str], Any] | None = None,
     ):
         self.dsn = dsn
         self.rabbitmq_url = rabbitmq_url
-        self.worker_id = worker_id or os.getenv(
-            "WORKER_ID", f"worker-{uuid.uuid4().hex[:8]}"
+        self.worker_id = (
+            worker_id
+            or os.getenv("WORKER_ID")
+            or os.getenv("HOSTNAME")
+            or f"worker-{uuid.uuid4().hex[:8]}"
         )
-        self.prefetch_count = prefetch_count
-        self.max_retries = max_retries
+        self.prefetch_count = (
+            prefetch_count
+            if prefetch_count is not None
+            else int(os.getenv("WORKER_PREFETCH", "1"))
+        )
+        self.max_retries = (
+            max_retries
+            if max_retries is not None
+            else int(os.getenv("WORKER_MAX_RETRIES", "3"))
+        )
         self.backoff_max = backoff_max
         self.servico = ServicoEmprestimos(dsn)
         self.processador = processador or self._processar_no_banco

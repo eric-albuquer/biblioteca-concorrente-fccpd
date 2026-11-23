@@ -1,0 +1,18 @@
+{
+  "coletado_em_utc": "2026-11-23T01:21:04Z",
+  "sistema": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.36",
+  "maquina": "x86_64",
+  "processador": "não informado pelo SO",
+  "cpu_logicas": 8,
+  "ram_bytes": 16771153920,
+  "ram_gib": 15.62,
+  "python": "3.13.4 (main, Jun 10 2025, 23:56:29) [GCC 12.2.0]",
+  "host_informado": "Windows 11 10.0.26200; Intel Core Family 6 Model 183; 32 CPUs logicas; 31.71 GiB RAM",
+  "docker": "Docker 29.6.1",
+  "docker_compose": "Docker Compose v5.2.0",
+  "limites_compose": "sem limites explícitos de CPU/memória",
+  "postgresql": "PostgreSQL 16.16 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+  "rabbitmq": "RabbitMQ 4.4.1",
+  "repeticoes_por_configuracao": 5,
+  "aquecimentos_por_configuracao": 1
+}

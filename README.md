@@ -20,7 +20,9 @@ laço.
 > reproduzível em containers está em
 > [`docs/ETAPA_4_DOCKER.md`](docs/ETAPA_4_DOCKER.md). Os testes de falha,
 > redelivery e recuperação estão em
-> [`docs/ETAPA_5_FALHAS.md`](docs/ETAPA_5_FALHAS.md).
+> [`docs/ETAPA_5_FALHAS.md`](docs/ETAPA_5_FALHAS.md). As medições de throughput
+> e paralelismo CPU estão em
+> [`docs/ETAPA_6_BENCHMARK.md`](docs/ETAPA_6_BENCHMARK.md).
 
 ## Parte 2 — inicialização rápida com Docker
 

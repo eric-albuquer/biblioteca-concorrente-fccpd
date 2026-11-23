@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img">
+<title>Speedup do relatório CPU-bound</title>
+<desc>Tempo sequencial mediano dividido pelo tempo paralelo mediano; valores abaixo de um indicam regressão.</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="90" y="35" font-size="22" font-family="sans-serif" font-weight="700" fill="#111827">Speedup do relatório CPU-bound</text>
+<line x1="90" y1="420.0" x2="930" y2="420.0" stroke="#d1d5db" stroke-width="1"/>
+<text x="80" y="424.0" text-anchor="end" font-size="12" font-family="sans-serif" fill="#374151">0.0</text>
+<line x1="90" y1="352.0" x2="930" y2="352.0" stroke="#d1d5db" stroke-width="1"/>
+<text x="80" y="356.0" text-anchor="end" font-size="12" font-family="sans-serif" fill="#374151">0.9</text>
+<line x1="90" y1="284.0" x2="930" y2="284.0" stroke="#d1d5db" stroke-width="1"/>
+<text x="80" y="288.0" text-anchor="end" font-size="12" font-family="sans-serif" fill="#374151">1.8</text>
+<line x1="90" y1="216.0" x2="930" y2="216.0" stroke="#d1d5db" stroke-width="1"/>
+<text x="80" y="220.0" text-anchor="end" font-size="12" font-family="sans-serif" fill="#374151">2.7</text>
+<line x1="90" y1="148.0" x2="930" y2="148.0" stroke="#d1d5db" stroke-width="1"/>
+<text x="80" y="152.0" text-anchor="end" font-size="12" font-family="sans-serif" fill="#374151">3.6</text>
+<line x1="90" y1="80.0" x2="930" y2="80.0" stroke="#d1d5db" stroke-width="1"/>
+<text x="80" y="84.0" text-anchor="end" font-size="12" font-family="sans-serif" fill="#374151">4.4</text>
+<rect x="178.0" y="349.7" width="50.0" height="70.3" fill="#2563eb" rx="3"/>
+<text x="203.0" y="343.7" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#111827">0.92</text>
+<rect x="232.0" y="342.1" width="50.0" height="77.9" fill="#ea580c" rx="3"/>
+<text x="257.0" y="336.1" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#111827">1.02</text>
+<text x="230.0" y="444" text-anchor="middle" font-size="13" font-family="sans-serif" fill="#111827">1 processo(s)</text>
+<rect x="458.0" y="288.6" width="50.0" height="131.4" fill="#2563eb" rx="3"/>
+<text x="483.0" y="282.6" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#111827">1.72</text>
+<rect x="512.0" y="268.2" width="50.0" height="151.8" fill="#ea580c" rx="3"/>
+<text x="537.0" y="262.2" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#111827">1.98</text>
+<text x="510.0" y="444" text-anchor="middle" font-size="13" font-family="sans-serif" fill="#111827">2 processo(s)</text>
+<rect x="738.0" y="191.9" width="50.0" height="228.1" fill="#2563eb" rx="3"/>
+<text x="763.0" y="185.9" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#111827">2.98</text>
+<rect x="792.0" y="124.3" width="50.0" height="295.7" fill="#ea580c" rx="3"/>
+<text x="817.0" y="118.3" text-anchor="middle" font-size="11" font-family="sans-serif" fill="#111827">3.86</text>
+<text x="790.0" y="444" text-anchor="middle" font-size="13" font-family="sans-serif" fill="#111827">4 processo(s)</text>
+<text transform="translate(22 250.0) rotate(-90)" text-anchor="middle" font-size="13" font-family="sans-serif" fill="#111827">Speedup (vezes)</text>
+<rect x="90" y="474" width="16" height="16" fill="#2563eb"/>
+<text x="114" y="487" font-size="13" font-family="sans-serif" fill="#111827">100.000 registros</text>
+<rect x="300" y="474" width="16" height="16" fill="#ea580c"/>
+<text x="324" y="487" font-size="13" font-family="sans-serif" fill="#111827">1.000.000 registros</text>
+</svg>

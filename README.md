@@ -1,12 +1,143 @@
-# Biblioteca Concorrente — Cliente/Servidor TCP
+# Biblioteca Distribuída — RabbitMQ, Workers e PostgreSQL
 
-Protótipo de um sistema de empréstimo de livros com **servidor TCP multithread**.
-Vários clientes disputam um número limitado de exemplares ao mesmo tempo: quem
-chega e encontra o estoque zerado **fica bloqueado numa fila de espera FIFO** até
-alguém devolver, em vez de receber um erro ou ficar consultando o servidor em
-laço.
+Sistema distribuído de empréstimo de livros desenvolvido para a Parte 2 de
+FCCPD. Clientes publicam pedidos e devoluções de forma assíncrona; RabbitMQ
+separa comandos em seis categorias; duas instâncias do serviço processam as
+mensagens; PostgreSQL mantém consistência forte, idempotência e fila de espera
+FIFO; respostas voltam por uma fila durável de cada cliente.
 
 > Disciplina: FCCPD — Fundamentos de Concorrência e Computação Distribuída
+
+> **Branch de desenvolvimento:** `versao-simplificada`. O trabalho partiu
+> exclusivamente da `main`; o merge deve ocorrer somente após revisão da equipe.
+
+## Parte 2 em um minuto
+
+```mermaid
+flowchart LR
+    C[Clientes] -->|comandos| R[(RabbitMQ\n6 filas de categoria)]
+    R --> W1[Worker 1]
+    R --> W2[Worker 2]
+    W1 & W2 --> P[(PostgreSQL)]
+    W1 & W2 -->|respostas| R
+    R -->|fila por client_id| C
+```
+
+| Requisito | Implementação e evidência |
+|---|---|
+| Distribuído | Cliente, RabbitMQ, PostgreSQL, migração e dois workers em contêineres/processos separados |
+| Assíncrono | Filas/mensagens duráveis, publisher confirms, ack manual, retry e DLQ |
+| Paralelismo | Relatório real por categoria com `ProcessPoolExecutor` e resultado equivalente ao sequencial |
+| Desempenho | Benchmarks versionados com 5 repetições, p95, speedup, eficiência, vazão e backlog |
+| Consistência | Transações, `SELECT ... FOR UPDATE`, constraints, idempotência e teste simultâneo |
+| Falhas | Queda após commit, redelivery automático, outro worker assume sem duplicar o empréstimo |
+
+Documentos principais:
+
+- [arquitetura implementada](docs/ARQUITETURA_PARTE_2.md);
+- [resultados, metodologia e interpretação](docs/RESULTADOS_PARTE_2.md);
+- [análise da main e plano](docs/ANALISE_E_PLANO_PARTE_2.md);
+- [decisões arquiteturais](docs/DECISOES_PARTE_2.md);
+- [relatório de uso de IA](docs/USO_IA_PARTE_2.md);
+- [guia de aprendizado e apresentação](docs/APRENDIZADO_E_APRESENTACAO.md).
+
+## Como executar a Parte 2
+
+Pré-requisitos: Docker com Compose. A porta local `15432` foi escolhida para o
+PostgreSQL porque `5432` costuma estar ocupada; dentro da rede Docker o banco
+continua em `5432`.
+
+```powershell
+docker compose up -d --build
+docker compose ps
+```
+
+Serviços esperados: RabbitMQ e PostgreSQL saudáveis, migração encerrada com
+código 0 e `worker-1`/`worker-2` ativos. RabbitMQ Management fica em
+<http://localhost:15672> (`biblioteca` / `biblioteca`).
+
+### Cliente
+
+```powershell
+docker compose run --build --rm client python -m biblioteca_distribuida.client catalog
+docker compose run --build --rm client python -m biblioteca_distribuida.client --client-id alice borrow 11111111-1111-1111-1111-111111111111 ficcao-cientifica
+```
+
+Para reconectar e ouvir uma resposta pendente, repita o mesmo `client-id`:
+
+```powershell
+docker compose run --build --rm client python -m biblioteca_distribuida.client --client-id alice listen --timeout 60
+```
+
+Categorias válidas: `ficcao-cientifica`, `romance`, `aventura`, `acao`,
+`suspense` e `terror`.
+
+### Validações reproduzíveis
+
+```powershell
+# Fluxo completo e proteção contra devolução repetida
+docker compose run --build --rm client python scripts/smoke_test.py
+
+# Cliente desconectado/lento e mensagem inválida na DLQ
+docker compose run --build --rm client python scripts/messaging_resilience_demo.py
+
+# Derruba um worker após commit e comprova redelivery/idempotência
+docker compose run --build --rm client python scripts/failure_demo.py
+docker compose logs --tail=100 worker-1 worker-2
+```
+
+Testes locais contra o banco do Compose:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+$env:PYTHONPATH="$PWD\src;$PWD"
+$env:TEST_DATABASE_URL="postgresql://biblioteca:biblioteca@localhost:15432/biblioteca"
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Resultado observado: **7 testes aprovados**, incluindo duas transações
+simultâneas disputando o último exemplar.
+
+### Benchmarks
+
+```powershell
+$env:PYTHONPATH="$PWD\src;$PWD"
+.\.venv\Scripts\python.exe -m benchmarks.run_parallel_benchmark
+.\.venv\Scripts\python.exe -m benchmarks.run_e2e_benchmark
+```
+
+O segundo comando escala temporariamente o serviço para 1, 2, 4 e 6 workers e
+restaura dois ao terminar, inclusive no bloco `finally`. Nesta máquina, o
+relatório paralelo alcançou speedup de **2,24×** com 6 processos; o fluxo
+distribuído passou de **288 para 982 comandos/s** entre 1 e 6 workers. Consulte
+os dados brutos e a interpretação em
+[RESULTADOS_PARTE_2.md](docs/RESULTADOS_PARTE_2.md).
+
+### Encerrar
+
+```powershell
+docker compose down
+```
+
+Não use `-v` se quiser preservar banco, filas e respostas entre execuções.
+
+## Garantias e limites
+
+- Entrega pelo menos uma vez; efeitos de negócio são idempotentes por
+  `request_id`.
+- Devolução exige `loan_id`, dono correto e estado ativo.
+- Espera é persistida no banco e atendida em FIFO.
+- A queda de um consumidor é tolerada; RabbitMQ e PostgreSQL ainda são pontos
+  únicos de falha neste Compose acadêmico.
+- Credenciais estão fixas apenas para o ambiente local de demonstração.
+
+---
+
+# Parte 1 — referência preservada
+
+A implementação TCP multithread original continua no repositório para mostrar a
+evolução do protótipo single-node. As seções seguintes documentam essa versão.
 
 ## 👩‍💻 Equipe
 

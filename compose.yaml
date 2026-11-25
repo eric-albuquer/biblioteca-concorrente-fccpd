@@ -1,0 +1,90 @@
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql://biblioteca:biblioteca@postgres:5432/biblioteca
+  RABBITMQ_URL: amqp://biblioteca:biblioteca@rabbitmq:5672/%2F
+  PREFETCH_COUNT: "1"
+  MAX_RETRIES: "3"
+  RETRY_DELAY_MS: "3000"
+  ENABLE_FAULT_INJECTION: "true"
+
+x-worker: &worker
+  build: .
+  restart: unless-stopped
+  environment: *app-environment
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: biblioteca
+      RABBITMQ_DEFAULT_PASS: biblioteca
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: biblioteca
+      POSTGRES_USER: biblioteca
+      POSTGRES_PASSWORD: biblioteca
+    ports:
+      # 15432 evita conflito com instalações locais comuns do PostgreSQL.
+      - "15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biblioteca -d biblioteca"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build: .
+    command: ["python", "-m", "biblioteca_distribuida.migrate"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  worker-1:
+    <<: *worker
+    environment:
+      <<: *app-environment
+      WORKER_NAME: worker-1
+
+  worker-2:
+    <<: *worker
+    environment:
+      <<: *app-environment
+      WORKER_NAME: worker-2
+
+  client:
+    build: .
+    profiles: ["tools"]
+    environment:
+      <<: *app-environment
+      RABBITMQ_URL: amqp://biblioteca:biblioteca@rabbitmq:5672/%2F
+    command: ["python", "-m", "biblioteca_distribuida.client", "catalog"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  rabbitmq-data:
+  postgres-data:

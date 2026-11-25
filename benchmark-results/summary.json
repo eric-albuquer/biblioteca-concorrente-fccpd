@@ -1,0 +1,64 @@
+{
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.4",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "logical_cpus": 32,
+    "total_memory_bytes": 34049417216
+  },
+  "method": {
+    "events_per_category": 100000,
+    "categories": 6,
+    "total_events": 600000,
+    "repetitions": 5,
+    "warmup": 1
+  },
+  "result_hash": "c40f4600ceeccda172f4e40a80e5f3e6bbd4b1f1b3ceb0800fede2911abf5365",
+  "summary": [
+    {
+      "mode": "sequential",
+      "workers": 0,
+      "median_seconds": 1.6024161998648196,
+      "p95_seconds": 1.6107272800058126,
+      "stdev_seconds": 0.03899669393489792,
+      "speedup": 1.0,
+      "efficiency": 1.0
+    },
+    {
+      "mode": "parallel",
+      "workers": 1,
+      "median_seconds": 1.8402114000637084,
+      "p95_seconds": 1.8884994800202548,
+      "stdev_seconds": 0.06573445875876065,
+      "speedup": 0.8707783246040883,
+      "efficiency": 0.8707783246040883
+    },
+    {
+      "mode": "parallel",
+      "workers": 2,
+      "median_seconds": 1.0469190999865532,
+      "p95_seconds": 1.1078713600989432,
+      "stdev_seconds": 0.06462921225763918,
+      "speedup": 1.5306017436164852,
+      "efficiency": 0.7653008718082426
+    },
+    {
+      "mode": "parallel",
+      "workers": 4,
+      "median_seconds": 0.9614585998933762,
+      "p95_seconds": 1.051207540044561,
+      "stdev_seconds": 0.1065947810106367,
+      "speedup": 1.6666512734323915,
+      "efficiency": 0.4166628183580979
+    },
+    {
+      "mode": "parallel",
+      "workers": 6,
+      "median_seconds": 0.7153340999502689,
+      "p95_seconds": 1.16637568003498,
+      "stdev_seconds": 0.25044169709468667,
+      "speedup": 2.2400948032202326,
+      "efficiency": 0.37334913387003876
+    }
+  ]
+}

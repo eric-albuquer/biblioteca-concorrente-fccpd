@@ -1,0 +1,1 @@
+"""Testes que exigem PostgreSQL."""

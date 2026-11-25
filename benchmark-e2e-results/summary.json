@@ -1,0 +1,51 @@
+{
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.4",
+    "logical_cpus": 32,
+    "docker": "29.6.1",
+    "docker_compose": "5.2.0"
+  },
+  "method": {
+    "commands_per_repetition": 1200,
+    "parallel_producers": 8,
+    "repetitions": 5,
+    "workers": [
+      1,
+      2,
+      4,
+      6
+    ],
+    "command": "DEVOLVER empréstimo inexistente (caminho real com transação e resposta)"
+  },
+  "summary": [
+    {
+      "workers": 1,
+      "throughput_median_commands_s": 288.46935347731414,
+      "latency_median_ms": 267.5297000678256,
+      "latency_p95_ms": 496.17229007417336,
+      "max_queue_depth": 84
+    },
+    {
+      "workers": 2,
+      "throughput_median_commands_s": 535.7304293627183,
+      "latency_median_ms": 27.128900052048266,
+      "latency_p95_ms": 42.58397500962019,
+      "max_queue_depth": 12
+    },
+    {
+      "workers": 4,
+      "throughput_median_commands_s": 860.3521551414524,
+      "latency_median_ms": 15.18629991915077,
+      "latency_p95_ms": 25.594249891582876,
+      "max_queue_depth": 10
+    },
+    {
+      "workers": 6,
+      "throughput_median_commands_s": 982.0466326934809,
+      "latency_median_ms": 11.546349967829883,
+      "latency_p95_ms": 22.679470002185546,
+      "max_queue_depth": 5
+    }
+  ]
+}
